@@ -26,10 +26,11 @@ type RouterAdapter struct {
 	// The Context to use as a starting point for all endpoint handlers
 	Base context.Context
 
-	// A function to transform the Context before the endpoint is called.
-	// If the bool return value is false, the endpoints will never be called
-	// so the response should have already been written to the ResponseWriter.
-	Init func(context.Context, http.ResponseWriter, *http.Request) (context.Context, bool)
+	// A function to transform the Context before the endpoint is called. To
+	// short-circuit and skip the handlers entirely, return a Context that is
+	// already done (probably cancelled). Be sure you also send an appropriate
+	// response code to the ResponseWriter.
+	Init func(context.Context, http.ResponseWriter, *http.Request) context.Context
 }
 
 // NewRouterAdapter creates a new RouterAdapter around a given httprouter.Router.
@@ -37,7 +38,7 @@ type RouterAdapter struct {
 // created with httprouter.New(), the base context would be context.Background(),
 // and the adapter would not perform any initialization of the context.
 func NewRouterAdapter(router *httprouter.Router, base context.Context,
-	init func(context.Context, http.ResponseWriter, *http.Request) (context.Context, bool)) *RouterAdapter {
+	init func(context.Context, http.ResponseWriter, *http.Request) context.Context) *RouterAdapter {
 	if router == nil {
 		router = httprouter.New()
 	}
@@ -98,10 +99,11 @@ func handlerShim(ra *RouterAdapter, ctxHandle contextual.Handler) httprouter.Han
 		ctx := context.WithValue(ra.Base, paramKey, p)
 
 		if ra.Init != nil {
-			var ok bool
-			ctx, ok = ra.Init(ctx, w, r)
-			if !ok {
+			ctx = ra.Init(ctx, w, r)
+			select {
+			case <-ctx.Done():
 				return
+			default:
 			}
 		}
 
