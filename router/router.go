@@ -15,30 +15,27 @@ import (
 
 const paramKey = "params"
 
-// RouterAdapter wraps an httprouter.Router, then for each request adds the
+// InitFunc is a function to transform the Context before an endpoint is called.
+// To short-circuit and skip the handlers entirely, return a Context that is
+// already done (probably by cancelling). Be sure you also set an appropriate
+// response code to the ResponseWriter.
+type InitFunc func(context.Context, http.ResponseWriter, *http.Request) context.Context
+
+// Router wraps an httprouter.Router, then for each request adds the
 // httprouter's Params as the Value("params") to the context, executes a custom
 // initialization function, and passes the context on to handlers that accept
 // it as an argument.
-type RouterAdapter struct {
-	// The Router that will be used to route incoming requests to handlers
-	Router *httprouter.Router
-
-	// The Context to use as a starting point for all endpoint handlers
-	Base context.Context
-
-	// A function to transform the Context before the endpoint is called. To
-	// short-circuit and skip the handlers entirely, return a Context that is
-	// already done (probably cancelled). Be sure you also send an appropriate
-	// response code to the ResponseWriter.
-	Init func(context.Context, http.ResponseWriter, *http.Request) context.Context
+type Router struct {
+	router *httprouter.Router
+	base context.Context
+	init InitFunc
 }
 
-// NewRouterAdapter creates a new RouterAdapter around a given httprouter.Router.
-// All arguments may be nil, in which case the RouterAdapter would wrap a Router
+// NewRouter creates a new Router around a given httprouter.Router.
+// All arguments may be nil, in which case the Router would wrap a Router
 // created with httprouter.New(), the base context would be context.Background(),
 // and the adapter would not perform any initialization of the context.
-func NewRouterAdapter(router *httprouter.Router, base context.Context,
-	init func(context.Context, http.ResponseWriter, *http.Request) context.Context) *RouterAdapter {
+func NewRouter(router *httprouter.Router, base context.Context, init InitFunc) *Router {
 	if router == nil {
 		router = httprouter.New()
 	}
@@ -46,60 +43,60 @@ func NewRouterAdapter(router *httprouter.Router, base context.Context,
 		base = context.Background()
 	}
 
-	return &RouterAdapter{router, base, init}
+	return &Router{router, base, init}
 }
 
 // ServeHTTP implements http.Handler
-func (ra *RouterAdapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ra.Router.ServeHTTP(w, r)
+func (ra *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ra.router.ServeHTTP(w, r)
 }
 
 // Handle adds a method/path handler with a context.Context argument
-func (ra *RouterAdapter) Handle(method, path string, handle contextual.Handler) {
-	ra.Router.Handle(method, path, handlerShim(ra, handle))
+func (ra *Router) Handle(method, path string, handle contextual.Handler) {
+	ra.router.Handle(method, path, handlerShim(ra, handle))
 }
 
 // GET is a shortcut for Handle("GET", ...)
-func (ra *RouterAdapter) GET(path string, handle contextual.Handler) {
+func (ra *Router) GET(path string, handle contextual.Handler) {
 	ra.Handle("GET", path, handle)
 }
 
 // HEAD is a shortcut for Handle("HEAD", ...)
-func (ra *RouterAdapter) HEAD(path string, handle contextual.Handler) {
+func (ra *Router) HEAD(path string, handle contextual.Handler) {
 	ra.Handle("HEAD", path, handle)
 }
 
 // POST is a shortcut for Handle("POST", ...)
-func (ra *RouterAdapter) POST(path string, handle contextual.Handler) {
+func (ra *Router) POST(path string, handle contextual.Handler) {
 	ra.Handle("POST", path, handle)
 }
 
 // PUT is a shortcut for Handle("PUT", ...)
-func (ra *RouterAdapter) PUT(path string, handle contextual.Handler) {
+func (ra *Router) PUT(path string, handle contextual.Handler) {
 	ra.Handle("PUT", path, handle)
 }
 
 // DELETE is a shortcut for Handle("DELETE", ...)
-func (ra *RouterAdapter) DELETE(path string, handle contextual.Handler) {
+func (ra *Router) DELETE(path string, handle contextual.Handler) {
 	ra.Handle("DELETE", path, handle)
 }
 
 // OPTIONS is a shortcut for Handle("OPTIONS", ...)
-func (ra *RouterAdapter) OPTIONS(path string, handle contextual.Handler) {
+func (ra *Router) OPTIONS(path string, handle contextual.Handler) {
 	ra.Handle("OPTIONS", path, handle)
 }
 
 // PATCH is a shortcut for Handle("PATCH", ...)
-func (ra *RouterAdapter) PATCH(path string, handle contextual.Handler) {
+func (ra *Router) PATCH(path string, handle contextual.Handler) {
 	ra.Handle("PATCH", path, handle)
 }
 
-func handlerShim(ra *RouterAdapter, ctxHandle contextual.Handler) httprouter.Handle {
+func handlerShim(ra *Router, ctxHandle contextual.Handler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		ctx := context.WithValue(ra.Base, paramKey, p)
+		ctx := context.WithValue(ra.base, paramKey, p)
 
-		if ra.Init != nil {
-			ctx = ra.Init(ctx, w, r)
+		if ra.init != nil {
+			ctx = ra.init(ctx, w, r)
 			select {
 			case <-ctx.Done():
 				return
