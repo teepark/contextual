@@ -47,56 +47,56 @@ func NewRouter(router *httprouter.Router, base context.Context, init InitFunc) *
 }
 
 // ServeHTTP implements http.Handler
-func (ra *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ra.router.ServeHTTP(w, r)
+func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	router.router.ServeHTTP(w, r)
 }
 
 // Handle adds a method/path handler with a context.Context argument
-func (ra *Router) Handle(method, path string, handle contextual.Handler) {
-	ra.router.Handle(method, path, handlerShim(ra, handle))
+func (r *Router) Handle(method, path string, handle contextual.Handler) {
+	r.router.Handle(method, path, handlerShim(r, handle))
 }
 
 // GET is a shortcut for Handle("GET", ...)
-func (ra *Router) GET(path string, handle contextual.Handler) {
-	ra.Handle("GET", path, handle)
+func (r *Router) GET(path string, handle contextual.Handler) {
+	r.Handle("GET", path, handle)
 }
 
 // HEAD is a shortcut for Handle("HEAD", ...)
-func (ra *Router) HEAD(path string, handle contextual.Handler) {
-	ra.Handle("HEAD", path, handle)
+func (r *Router) HEAD(path string, handle contextual.Handler) {
+	r.Handle("HEAD", path, handle)
 }
 
 // POST is a shortcut for Handle("POST", ...)
-func (ra *Router) POST(path string, handle contextual.Handler) {
-	ra.Handle("POST", path, handle)
+func (r *Router) POST(path string, handle contextual.Handler) {
+	r.Handle("POST", path, handle)
 }
 
 // PUT is a shortcut for Handle("PUT", ...)
-func (ra *Router) PUT(path string, handle contextual.Handler) {
-	ra.Handle("PUT", path, handle)
+func (r *Router) PUT(path string, handle contextual.Handler) {
+	r.Handle("PUT", path, handle)
 }
 
 // DELETE is a shortcut for Handle("DELETE", ...)
-func (ra *Router) DELETE(path string, handle contextual.Handler) {
-	ra.Handle("DELETE", path, handle)
+func (r *Router) DELETE(path string, handle contextual.Handler) {
+	r.Handle("DELETE", path, handle)
 }
 
 // OPTIONS is a shortcut for Handle("OPTIONS", ...)
-func (ra *Router) OPTIONS(path string, handle contextual.Handler) {
-	ra.Handle("OPTIONS", path, handle)
+func (r *Router) OPTIONS(path string, handle contextual.Handler) {
+	r.Handle("OPTIONS", path, handle)
 }
 
 // PATCH is a shortcut for Handle("PATCH", ...)
-func (ra *Router) PATCH(path string, handle contextual.Handler) {
-	ra.Handle("PATCH", path, handle)
+func (r *Router) PATCH(path string, handle contextual.Handler) {
+	r.Handle("PATCH", path, handle)
 }
 
-func handlerShim(ra *Router, ctxHandle contextual.Handler) httprouter.Handle {
+func handlerShim(router *Router, ctxHandle contextual.Handler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		ctx := context.WithValue(ra.base, paramKey, p)
+		ctx := context.WithValue(router.base, paramKey, p)
 
-		if ra.init != nil {
-			ctx = ra.init(ctx, w, r)
+		if router.init != nil {
+			ctx = router.init(ctx, w, r)
 			select {
 			case <-ctx.Done():
 				return

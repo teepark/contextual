@@ -13,15 +13,15 @@ import (
 
 func TestRouterRoutes(t *testing.T) {
 	r := NewRouter(nil, nil, nil)
-	r.GET("/", contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	r.Handle("GET", "/", contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "I'm a GET")
 	}))
 
-	r.POST("/", contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	r.Handle("POST", "/", contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "I'm a POST")
 	}))
 
-	r.GET("/other/path", contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	r.Handle("GET", "/other/path", contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "another path")
 	}))
 
@@ -71,5 +71,76 @@ func TestRouterRoutes(t *testing.T) {
 
 	if string(msg) != "another path" {
 		t.Fatal("mismatch on GET /other/path", string(msg))
+	}
+}
+
+type routerMethodSpec struct {
+	name string
+	f    func(*Router) func(string, contextual.Handler)
+}
+
+var routerMethodSpecs = []routerMethodSpec{
+	{"GET", func(r *Router) func(string, contextual.Handler) { return r.GET }},
+	{"HEAD", func(r *Router) func(string, contextual.Handler) { return r.HEAD }},
+	{"POST", func(r *Router) func(string, contextual.Handler) { return r.POST }},
+	{"PUT", func(r *Router) func(string, contextual.Handler) { return r.PUT }},
+	{"DELETE", func(r *Router) func(string, contextual.Handler) { return r.DELETE }},
+	{"OPTIONS", func(r *Router) func(string, contextual.Handler) { return r.OPTIONS }},
+	{"PATCH", func(r *Router) func(string, contextual.Handler) { return r.PATCH }},
+}
+
+func TestRouterMethodFuncs(t *testing.T) {
+	// TODO: useful comments in this function, lots of high-level indirection to explain
+	r := NewRouter(nil, nil, nil)
+
+	handlerForMethod := func(method string) contextual.HandlerFunc {
+		return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+			if method == "HEAD" {
+				w.WriteHeader(204)
+			} else {
+				io.WriteString(w, method)
+			}
+		}
+	}
+
+	for _, spec := range routerMethodSpecs {
+		spec.f(r)("/"+spec.name, handlerForMethod(spec.name))
+	}
+
+	s := httptest.NewServer(r)
+	defer s.Close()
+
+	for _, spec := range routerMethodSpecs {
+		request, err := http.NewRequest(spec.name, s.URL+"/"+spec.name, nil)
+		if err != nil {
+			t.Fatalf("failed to create request (%s): %v", spec.name, err)
+		}
+
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatalf("client.Do (%s): %v", spec.name, err)
+		}
+
+		msg, err := ioutil.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil {
+			t.Fatalf("read %s: %v", spec.name, err)
+		}
+
+		if spec.name == "HEAD" {
+			if response.StatusCode != 204 {
+				t.Fatal("HEAD response status not 204:", response.StatusCode)
+			}
+		} else if response.StatusCode != 200 {
+			t.Fatalf("response status (%s): %d", spec.name, response.StatusCode)
+		}
+
+		if spec.name == "HEAD" {
+			if string(msg) != "" {
+				t.Fatal("received response body for HEAD:", string(msg))
+			}
+		} else if string(msg) != spec.name {
+			t.Fatalf("mismatch on %s: '%s'", spec.name, string(msg))
+		}
 	}
 }
