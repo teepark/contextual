@@ -144,3 +144,77 @@ func TestRouterMethodFuncs(t *testing.T) {
 		}
 	}
 }
+
+func TestBasePropagates(t *testing.T) {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, "key", "value")
+	router := NewRouter(nil, context.WithValue(ctx, "key", "value"), nil)
+
+	router.GET("/", contextual.HandlerFunc(func(c context.Context, w http.ResponseWriter, r *http.Request) {
+		ival := c.Value("key")
+		if ival == nil {
+			t.Fatal("missing value")
+		}
+		if val, ok := ival.(string); !ok {
+			t.Fatal("non-string value", ival)
+		} else {
+			io.WriteString(w, val)
+		}
+	}))
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+
+	resp, err := http.Get(s.URL)
+	if err != nil {
+		t.Fatal("GET", err)
+	}
+
+	msg, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatal("read:", err)
+	}
+
+	if string(msg) != "value" {
+		t.Fatal("mismatch:", string(msg))
+	}
+}
+
+func TestInitFuncRuns(t *testing.T) {
+	initer := InitFunc(func(c context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+		return context.WithValue(c, "key", "value")
+	})
+
+	router := NewRouter(nil, nil, initer)
+
+	router.GET("/", contextual.HandlerFunc(func(c context.Context, w http.ResponseWriter, r *http.Request) {
+		ival := c.Value("key")
+		if ival == nil {
+			t.Fatal("missing value")
+		}
+		if val, ok := ival.(string); !ok {
+			t.Fatal("non-string value", ival)
+		} else {
+			io.WriteString(w, val)
+		}
+	}))
+
+	s := httptest.NewServer(router)
+	defer s.Close()
+
+	resp, err := http.Get(s.URL)
+	if err != nil {
+		t.Fatal("GET", err)
+	}
+
+	msg, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatal("read:", err)
+	}
+
+	if string(msg) != "value" {
+		t.Fatal("mismatch:", string(msg))
+	}
+}
