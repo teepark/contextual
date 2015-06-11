@@ -1,5 +1,5 @@
 /*
-The router package implements wrappers around
+Package router implements wrappers around
 github.com/julienschmidt/httprouter.Router to enable the use of
 golang.org/x/net/context.Context in endpoint handlers.
 
@@ -131,43 +131,43 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Handle adds a method/path handler with a context.Context argument
-func (r *Router) Handle(method, path string, handle contextual.Handler) {
-	r.router.Handle(method, path, handlerShim(r, handle))
+func (router *Router) Handle(method, path string, handle contextual.Handler) {
+	router.router.Handle(method, path, handlerShim(router, handle))
 }
 
 // GET is a shortcut for Handle("GET", ...)
-func (r *Router) GET(path string, handle contextual.Handler) {
-	r.Handle("GET", path, handle)
+func (router *Router) GET(path string, handle contextual.Handler) {
+	router.Handle("GET", path, handle)
 }
 
 // HEAD is a shortcut for Handle("HEAD", ...)
-func (r *Router) HEAD(path string, handle contextual.Handler) {
-	r.Handle("HEAD", path, handle)
+func (router *Router) HEAD(path string, handle contextual.Handler) {
+	router.Handle("HEAD", path, handle)
 }
 
 // POST is a shortcut for Handle("POST", ...)
-func (r *Router) POST(path string, handle contextual.Handler) {
-	r.Handle("POST", path, handle)
+func (router *Router) POST(path string, handle contextual.Handler) {
+	router.Handle("POST", path, handle)
 }
 
 // PUT is a shortcut for Handle("PUT", ...)
-func (r *Router) PUT(path string, handle contextual.Handler) {
-	r.Handle("PUT", path, handle)
+func (router *Router) PUT(path string, handle contextual.Handler) {
+	router.Handle("PUT", path, handle)
 }
 
 // DELETE is a shortcut for Handle("DELETE", ...)
-func (r *Router) DELETE(path string, handle contextual.Handler) {
-	r.Handle("DELETE", path, handle)
+func (router *Router) DELETE(path string, handle contextual.Handler) {
+	router.Handle("DELETE", path, handle)
 }
 
 // OPTIONS is a shortcut for Handle("OPTIONS", ...)
-func (r *Router) OPTIONS(path string, handle contextual.Handler) {
-	r.Handle("OPTIONS", path, handle)
+func (router *Router) OPTIONS(path string, handle contextual.Handler) {
+	router.Handle("OPTIONS", path, handle)
 }
 
 // PATCH is a shortcut for Handle("PATCH", ...)
-func (r *Router) PATCH(path string, handle contextual.Handler) {
-	r.Handle("PATCH", path, handle)
+func (router *Router) PATCH(path string, handle contextual.Handler) {
+	router.Handle("PATCH", path, handle)
 }
 
 func handlerShim(router *Router, ctxHandle contextual.Handler) httprouter.Handle {
