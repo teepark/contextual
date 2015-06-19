@@ -33,6 +33,54 @@ A simple example looks like this:
 
 		log.Fatal(http.ListenAndServe(":8080", router))
 	}
+
+The initialization function can be used like middleware, to preload data into
+the context based on the request (a bit of faked code in this example):
+
+	package main
+
+	import (
+		"fmt"
+		"log"
+		"net/http"
+
+		"github.com/me/myAPI/authentication"
+		"github.com/teepark/contextual"
+		"github.com/teepark/contextual/router"
+		"golang.org/x/net/context"
+	)
+
+	func index(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "Welcome!")
+	}
+
+	func hello(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		params := router.Params(ctx)
+		fmt.Fprintf(w, "Hello, %s!\n", params.ByName("name"))
+	}
+
+	func initialContext(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+		uid := authentication.Auth(r)
+		if uid != 0 {
+			// store the user_id for the endpoint handler
+			ctx = context.WithValue(ctx, "user_id", uid)
+		} else {
+			// bail on the endpoint by canceling the context
+			var cancel func()
+			ctx, cancel = context.WithCancel(ctx)
+			cancel()
+			http.Error(w, "Please log in.", http.StatusForbidden)
+		}
+		return ctx
+	}
+
+	func main() {
+		router := router.NewRouter(nil, nil, initialContext)
+		router.GET("/", contextual.HandlerFunc(index))
+		router.GET("/hello/:name", contextual.HandlerFunc(hello))
+
+		log.Fatal(http.ListenAndServe(":8080", router))
+	}
 */
 package router
 
