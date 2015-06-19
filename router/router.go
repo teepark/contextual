@@ -2,6 +2,37 @@
 The router package implements wrappers around
 github.com/julienschmidt/httprouter.Router to enable the use of
 golang.org/x/net/context.Context in endpoint handlers.
+
+A simple example looks like this:
+
+	package main
+
+	import (
+		"fmt"
+		"log"
+		"net/http"
+
+		"github.com/teepark/contextual"
+		"github.com/teepark/contextual/router"
+		"golang.org/x/net/context"
+	)
+
+	func index(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "Welcome!")
+	}
+
+	func hello(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		params := router.Params(ctx)
+		fmt.Fprintf(w, "Hello, %s!\n", params.ByName("name"))
+	}
+
+	func main() {
+		router := router.NewRouter(nil, nil, nil) // take all defaults
+		router.GET("/", contextual.HandlerFunc(index))
+		router.GET("/hello/:name", contextual.HandlerFunc(hello))
+
+		log.Fatal(http.ListenAndServe(":8080", router))
+	}
 */
 package router
 
@@ -27,8 +58,8 @@ type InitFunc func(context.Context, http.ResponseWriter, *http.Request) context.
 // it as an argument.
 type Router struct {
 	router *httprouter.Router
-	base context.Context
-	init InitFunc
+	base   context.Context
+	init   InitFunc
 }
 
 // NewRouter creates a new Router around a given httprouter.Router.
