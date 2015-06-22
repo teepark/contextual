@@ -14,7 +14,7 @@ type Adapter struct {
 }
 
 // NewAdapter creates an Adapter (valid http.Handler) from a
-// contextual.Handler and a base context
+// contextual.Handler and a base context.
 func NewAdapter(h Handler, c context.Context) *Adapter {
 	if c == nil {
 		c = context.Background()
@@ -22,7 +22,7 @@ func NewAdapter(h Handler, c context.Context) *Adapter {
 	return &Adapter{c, h}
 }
 
-// ServeHTTP implements the http.Handler interface
+// ServeHTTP implements the http.Handler interface.
 func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.handler.Serve(a.c, w, r)
 }
