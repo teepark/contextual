@@ -132,9 +132,33 @@ func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	router.router.ServeHTTP(w, r)
 }
 
+// Lookup allows manual lookup of a method/path. If one is found, it
+// returns the Handle and Params for the route. Otherwise the third
+// return value indicates whether adding or removing a trailing slash
+// would result in a found route.
+func (router *Router) Lookup(method, path string) (httprouter.Handle, httprouter.Params, bool) {
+	return router.router.Lookup(method, path)
+}
+
+// ServeFiles serves files from a given filesystem root. The path must
+// end with "/*filepath". See httprouter's documentation for details.
+func (router *Router) ServeFiles(path string, root http.FileSystem) {
+	router.router.ServeFiles(path, root)
+}
+
 // Handle adds a method/path handler with a context.Context argument
 func (router *Router) Handle(method, path string, handle contextual.Handler) {
 	router.router.Handle(method, path, handlerShim(router, handle))
+}
+
+// Handle adds an http.Handler for a method/path
+func (router *Router) Handler(method, path string, handler http.Handler) {
+	router.router.Handler(method, path, handler)
+}
+
+// handlerFunc adds an http.HandlerFunc for a method/path
+func (router *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
+	router.router.HandlerFunc(method, path, handler)
 }
 
 // GET is a shortcut for Handle("GET", ...)
