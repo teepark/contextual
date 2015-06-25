@@ -1,5 +1,5 @@
-// Package chain provides a convenient way to chain contextual Handlers.
-// It is based on alice (github.com/justinas/alice).
+// Package chain provides a convenient way to chain functions that transform a
+// net/context.Context.
 package chain
 
 import (
@@ -9,44 +9,50 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Middleware is a function that wraps one contextual.Handler to create another,
-// potentially performing operations before and/or after calling the wrapped
-// Handler.
-type Middleware func(contextual.Handler) contextual.Handler
+// Transformer is a function that modifies a context based on the contents of a
+// *Request. It can optionally bail out early by returning a canceled context,
+// and signal failure to the client via the ResponseWriter.
+type Transformer func(context.Context, http.ResponseWriter, *http.Request) context.Context
 
-// Chain is an ordered collection of middlewares. The first middleware in the
-// chain will be the outermost -- the opposite of what you'd get by reducing
-// from the beginning of the chain to the end.
-type Chain []Middleware
+// Chain is an ordered collection of Transformer functions.
+type Chain []Transformer
 
-// Append adds one or more additional middlewares to the end of a chain. The
-// appended middlewares will be the ones invoked last/innermost (not like
-// taking an existing handler and wrapping it).
-func (c Chain) Append(middlewares ...Middleware) Chain {
-	return append(c, middlewares...)
+// Apply runs all the transformers in a chain successively, returning the
+// resulting Context. If any of the Transformers returned a canceled Context,
+// this function stops at that point. The base Context arg may be nil, in which
+// case context.Background() will be used.
+func (ch Chain) Apply(base context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+	ctx := base
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	for _, t := range ch {
+		ctx = t(ctx, w, r)
+
+		if ctx.Err() == context.Canceled {
+			break
+		}
+	}
+
+	return ctx
 }
 
-// Then produces a usable contextual.Handler from the middleware chain
-// plus the provided final terminating endpoint Handler.
-func (c Chain) Then(h contextual.Handler) contextual.Handler {
+// Then returns a contextual.Handler that will first transform the context by
+// the full Chain, then call the argument Handler if the context hasn't been
+// canceled by then.
+func (ch Chain) Then(h contextual.Handler) contextual.Handler {
 	if h == nil {
 		h = defaultHandler
 	}
 
-	for i := len(c) - 1; i >= 0; i-- {
-		h = c[i](h)
-	}
+	return contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		ctx = ch.Apply(ctx, w, r)
 
-	return h
-}
-
-// ThenFunc performs the same operation as Then, but takes a contextual.HandlerFunc
-// directly.
-//  c.Then(contextual.HandlerFunc(f))
-//  c.ThenFunc(f)
-// The above are equivalent statements.
-func (c Chain) ThenFunc(f contextual.HandlerFunc) contextual.Handler {
-	return c.Then(f)
+		if ctx.Err() != context.Canceled {
+			h.Serve(ctx, w, r)
+		}
+	})
 }
 
 var defaultHandler = contextual.HandlerFunc(func(_ context.Context, w http.ResponseWriter, r *http.Request) {

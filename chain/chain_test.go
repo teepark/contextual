@@ -10,12 +10,10 @@ import (
 	"golang.org/x/net/context"
 )
 
-func tagMiddleware(tag string) Middleware {
-	return func(h contextual.Handler) contextual.Handler {
-		return contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, tag)
-			h.Serve(ctx, w, r)
-		})
+func tagTransformer(tag string) Transformer {
+	return func(ctx context.Context, w http.ResponseWriter, _ *http.Request) context.Context {
+		fmt.Fprint(w, tag)
+		return ctx
 	}
 }
 
@@ -31,12 +29,10 @@ func contextValueApp(tag string) contextual.Handler {
 	})
 }
 
-func contextValueMiddleware(tag string) Middleware {
-	return func(h contextual.Handler) contextual.Handler {
-		return contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-			fmt.Fprint(w, ctx.Value(tag))
-			h.Serve(ctx, w, r)
-		})
+func contextValueTransformer(tag string) Transformer {
+	return func(ctx context.Context, w http.ResponseWriter, _ *http.Request) context.Context {
+		fmt.Fprint(w, ctx.Value(tag))
+		return ctx
 	}
 }
 
@@ -54,7 +50,7 @@ func bodyOf(h contextual.Handler) (string, error) {
 	return runHandler(h, r).Body.String(), nil
 }
 
-func TestThenWorksWithNoMiddleware(t *testing.T) {
+func TestThenWorksWithNoTransformer(t *testing.T) {
 	handler := Chain{}.Then(tagApp("simple"))
 
 	body, err := bodyOf(handler)
@@ -69,9 +65,9 @@ func TestThenWorksWithNoMiddleware(t *testing.T) {
 
 func TestChainOrder(t *testing.T) {
 	chain := Chain{
-		tagMiddleware("m1\n"),
-		tagMiddleware("m2\n"),
-		tagMiddleware("m3\n"),
+		tagTransformer("m1\n"),
+		tagTransformer("m2\n"),
+		tagTransformer("m3\n"),
 	}
 	handler := chain.Then(tagApp("endpoint"))
 
@@ -101,16 +97,13 @@ func TestNilTreatedAsDefault(t *testing.T) {
 		http.DefaultServeMux = trueDefault
 	}()
 
-	mware := func(h contextual.Handler) contextual.Handler {
-		return contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-			ctx = context.WithValue(ctx, "key", "value\n")
-			h.Serve(ctx, w, r)
-		})
+	mware := func(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+		return context.WithValue(ctx, "key", "value\n")
 	}
 
 	chain := Chain{
 		mware,
-		contextValueMiddleware("key"),
+		contextValueTransformer("key"),
 	}
 	handler := chain.Then(nil)
 
