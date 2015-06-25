@@ -27,7 +27,7 @@ A simple example looks like this:
 	}
 
 	func main() {
-		router := router.New(nil, nil, nil) // take all defaults
+		router := router.New(nil, nil) // take defaults
 		router.GET("/", contextual.HandlerFunc(index))
 		router.GET("/hello/:name", contextual.HandlerFunc(hello))
 
@@ -75,7 +75,7 @@ the context based on the request (a bit of faked code in this example):
 	}
 
 	func main() {
-		router := router.New(nil, nil, initialContext)
+		router := router.New(nil, initialContext)
 		router.GET("/", contextual.HandlerFunc(index))
 		router.GET("/hello/:name", contextual.HandlerFunc(hello))
 
@@ -108,23 +108,22 @@ type InitFunc func(context.Context, http.ResponseWriter, *http.Request) context.
 // it as an argument.
 type Router struct {
 	router *httprouter.Router
-	base   context.Context
 	init   InitFunc
 }
 
 // New creates a new Router around a given httprouter.Router.
-// All arguments may be nil, in which case the Router would wrap a Router
-// created with httprouter.New(), the base context would be context.Background(),
-// and the adapter would not perform any initialization of the context.
-func New(router *httprouter.Router, base context.Context, init InitFunc) *Router {
+// All arguments may be nil, in which case the Router would wrap a
+// Router created with httprouter.New() and there would be no
+// initialization of the context.
+func New(router *httprouter.Router, init InitFunc) *Router {
 	if router == nil {
 		router = httprouter.New()
 	}
-	if base == nil {
-		base = context.Background()
-	}
 
-	return &Router{router, base, init}
+	return &Router{
+		router: router,
+		init:   init,
+	}
 }
 
 // ServeHTTP implements http.Handler
@@ -198,7 +197,7 @@ func (router *Router) PATCH(path string, handle contextual.Handler) {
 
 func handlerShim(router *Router, ctxHandle contextual.Handler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		ctx := context.WithValue(router.base, ParamKey, p)
+		ctx := context.WithValue(context.Background(), ParamKey, p)
 
 		if router.init != nil {
 			ctx = router.init(ctx, w, r)
