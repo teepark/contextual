@@ -92,7 +92,9 @@ import (
 	"golang.org/x/net/context"
 )
 
-const paramKey = "params"
+// ParamKey is the key in a context.Context under which the httprouter.Params
+// will be stored.
+const ParamKey = "params"
 
 // InitFunc is a function to transform the Context before an endpoint is called.
 // To short-circuit and skip the handlers entirely, return a Context that is
@@ -172,7 +174,7 @@ func (router *Router) PATCH(path string, handle contextual.Handler) {
 
 func handlerShim(router *Router, ctxHandle contextual.Handler) httprouter.Handle {
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		ctx := context.WithValue(router.base, paramKey, p)
+		ctx := context.WithValue(router.base, ParamKey, p)
 
 		if router.init != nil {
 			ctx = router.init(ctx, w, r)
@@ -189,7 +191,7 @@ func handlerShim(router *Router, ctxHandle contextual.Handler) httprouter.Handle
 
 // Params retrieves the httprouter Params from a context
 func Params(c context.Context) httprouter.Params {
-	p := c.Value(paramKey)
+	p := c.Value(ParamKey)
 	if p == nil {
 		return nil
 	}
