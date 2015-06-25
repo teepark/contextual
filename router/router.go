@@ -102,10 +102,10 @@ const ParamKey = "params"
 // response code to the ResponseWriter.
 type InitFunc func(context.Context, http.ResponseWriter, *http.Request) context.Context
 
-// Router wraps an httprouter.Router, then for each request adds the
-// httprouter's Params as the Value("params") to the context, executes a custom
-// initialization function, and passes the context on to handlers that accept
-// it as an argument.
+// Router wraps an httprouter.Router to accept contextual.Handlers. For
+// each request, it adds the httprouter.Params to the context as
+// Value(router.ParamKey), executes a context initialization function,
+// and passes the resulting context to the handlers.
 type Router struct {
 	router *httprouter.Router
 	init   InitFunc
