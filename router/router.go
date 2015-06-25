@@ -27,7 +27,7 @@ A simple example looks like this:
 	}
 
 	func main() {
-		router := router.NewRouter(nil, nil, nil) // take all defaults
+		router := router.New(nil, nil, nil) // take all defaults
 		router.GET("/", contextual.HandlerFunc(index))
 		router.GET("/hello/:name", contextual.HandlerFunc(hello))
 
@@ -75,7 +75,7 @@ the context based on the request (a bit of faked code in this example):
 	}
 
 	func main() {
-		router := router.NewRouter(nil, nil, initialContext)
+		router := router.New(nil, nil, initialContext)
 		router.GET("/", contextual.HandlerFunc(index))
 		router.GET("/hello/:name", contextual.HandlerFunc(hello))
 
@@ -112,11 +112,11 @@ type Router struct {
 	init   InitFunc
 }
 
-// NewRouter creates a new Router around a given httprouter.Router.
+// New creates a new Router around a given httprouter.Router.
 // All arguments may be nil, in which case the Router would wrap a Router
 // created with httprouter.New(), the base context would be context.Background(),
 // and the adapter would not perform any initialization of the context.
-func NewRouter(router *httprouter.Router, base context.Context, init InitFunc) *Router {
+func New(router *httprouter.Router, base context.Context, init InitFunc) *Router {
 	if router == nil {
 		router = httprouter.New()
 	}

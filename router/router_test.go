@@ -12,7 +12,7 @@ import (
 )
 
 func TestRouterRoutes(t *testing.T) {
-	r := NewRouter(nil, nil, nil)
+	r := New(nil, nil, nil)
 	r.Handle("GET", "/", contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "I'm a GET")
 	}))
@@ -91,7 +91,7 @@ var routerMethodSpecs = []routerMethodSpec{
 
 func TestRouterMethodFuncs(t *testing.T) {
 	// TODO: useful comments in this function, lots of high-level indirection to explain
-	r := NewRouter(nil, nil, nil)
+	r := New(nil, nil, nil)
 
 	handlerForMethod := func(method string) contextual.HandlerFunc {
 		return func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
@@ -148,7 +148,7 @@ func TestRouterMethodFuncs(t *testing.T) {
 func TestBasePropagates(t *testing.T) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, "key", "value")
-	router := NewRouter(nil, context.WithValue(ctx, "key", "value"), nil)
+	router := New(nil, context.WithValue(ctx, "key", "value"), nil)
 
 	router.GET("/", contextual.HandlerFunc(func(c context.Context, w http.ResponseWriter, r *http.Request) {
 		ival := c.Value("key")
@@ -186,7 +186,7 @@ func TestInitFuncRuns(t *testing.T) {
 		return context.WithValue(c, "key", "value")
 	})
 
-	router := NewRouter(nil, nil, initer)
+	router := New(nil, nil, initer)
 
 	router.GET("/", contextual.HandlerFunc(func(c context.Context, w http.ResponseWriter, r *http.Request) {
 		ival := c.Value("key")
