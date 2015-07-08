@@ -1,4 +1,4 @@
-package chain
+package middleware
 
 import (
 	"fmt"
@@ -10,11 +10,11 @@ import (
 	"golang.org/x/net/context"
 )
 
-func tagTransformer(tag string) Transformer {
-	return func(ctx context.Context, w http.ResponseWriter, _ *http.Request) context.Context {
+func tagMiddleware(tag string) Middleware {
+	return Inbound(func(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
 		fmt.Fprint(w, tag)
 		return ctx
-	}
+	})
 }
 
 func tagApp(tag string) contextual.Handler {
@@ -29,11 +29,11 @@ func contextValueApp(tag string) contextual.Handler {
 	})
 }
 
-func contextValueTransformer(tag string) Transformer {
-	return func(ctx context.Context, w http.ResponseWriter, _ *http.Request) context.Context {
+func contextValueMiddleware(tag string) Middleware {
+	return Inbound(func(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
 		fmt.Fprint(w, ctx.Value(tag))
 		return ctx
-	}
+	})
 }
 
 func runHandler(h contextual.Handler, r *http.Request) *httptest.ResponseRecorder {
@@ -50,7 +50,7 @@ func bodyOf(h contextual.Handler) (string, error) {
 	return runHandler(h, r).Body.String(), nil
 }
 
-func TestThenWorksWithNoTransformer(t *testing.T) {
+func TestThenWorksWithNoMiddleware(t *testing.T) {
 	handler := Chain{}.Then(tagApp("simple"))
 
 	body, err := bodyOf(handler)
@@ -63,11 +63,11 @@ func TestThenWorksWithNoTransformer(t *testing.T) {
 	}
 }
 
-func TestChainOrder(t *testing.T) {
+func TestChainInboundOrder(t *testing.T) {
 	chain := Chain{
-		tagTransformer("m1\n"),
-		tagTransformer("m2\n"),
-		tagTransformer("m3\n"),
+		tagMiddleware("m1\n"),
+		tagMiddleware("m2\n"),
+		tagMiddleware("m3\n"),
 	}
 	handler := chain.Then(tagApp("endpoint"))
 
@@ -79,6 +79,36 @@ func TestChainOrder(t *testing.T) {
 	expected := "m1\nm2\nm3\nendpoint"
 	if body != expected {
 		t.Fatalf("expected '%q', got '%q'", expected, body)
+	}
+}
+
+func TestChainOutboundOrder(t *testing.T) {
+	sl := make([]int, 0, 3)
+
+	m1 := Outbound(func(ctx context.Context, r *http.Request) {
+		sl = append(sl, 1)
+	})
+	m2 := Outbound(func(ctx context.Context, r *http.Request) {
+		sl = append(sl, 2)
+	})
+	m3 := Outbound(func(ctx context.Context, r *http.Request) {
+		sl = append(sl, 3)
+	})
+
+	ch := Chain{m1, m2, m3}
+	handler := ch.Then(nil)
+
+	req, err := http.NewRequest("GET", "http://localhost/foo", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runHandler(handler, req)
+
+	if len(sl) != 3 ||
+		sl[0] != 3 ||
+		sl[1] != 2 ||
+		sl[2] != 1 {
+		t.Fatalf("expected [3, 2, 1], got %v", sl)
 	}
 }
 
@@ -97,13 +127,13 @@ func TestNilTreatedAsDefault(t *testing.T) {
 		http.DefaultServeMux = trueDefault
 	}()
 
-	mware := func(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+	mware := Inbound(func(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
 		return context.WithValue(ctx, "key", "value\n")
-	}
+	})
 
 	chain := Chain{
 		mware,
-		contextValueTransformer("key"),
+		contextValueMiddleware("key"),
 	}
 	handler := chain.Then(nil)
 

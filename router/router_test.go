@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/teepark/contextual"
+	"github.com/teepark/contextual/middleware"
 	"golang.org/x/net/context"
 )
 
@@ -145,8 +146,8 @@ func TestRouterMethodFuncs(t *testing.T) {
 	}
 }
 
-func TestInitFuncRuns(t *testing.T) {
-	initer := InitFunc(func(c context.Context, w http.ResponseWriter, r *http.Request) context.Context {
+func TestInboundMiddlewareRuns(t *testing.T) {
+	initer := middleware.Inbound(func(c context.Context, w http.ResponseWriter, r *http.Request) context.Context {
 		return context.WithValue(c, "key", "value")
 	})
 

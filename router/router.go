@@ -34,53 +34,6 @@ A simple example looks like this:
 		log.Fatal(http.ListenAndServe(":8080", router))
 	}
 
-The initialization function can be used like middleware, to preload data into
-the context based on the request (a bit of faked code in this example):
-
-	package main
-
-	import (
-		"fmt"
-		"log"
-		"net/http"
-
-		"github.com/me/myAPI/authentication"
-		"github.com/teepark/contextual"
-		"github.com/teepark/contextual/router"
-		"golang.org/x/net/context"
-	)
-
-	func index(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "Welcome!")
-	}
-
-	func hello(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-		params := router.Params(ctx)
-		fmt.Fprintf(w, "Hello, %s!\n", params.ByName("name"))
-	}
-
-	func initialContext(ctx context.Context, w http.ResponseWriter, r *http.Request) context.Context {
-		uid := authentication.Auth(r)
-		if uid != 0 {
-			// store the user_id for the endpoint handler
-			ctx = context.WithValue(ctx, "user_id", uid)
-		} else {
-			// bail on the endpoint by canceling the context
-			var cancel func()
-			ctx, cancel = context.WithCancel(ctx)
-			cancel()
-			http.Error(w, "Please log in.", http.StatusForbidden)
-		}
-		return ctx
-	}
-
-	func main() {
-		router := router.New(nil, initialContext)
-		router.GET("/", contextual.HandlerFunc(index))
-		router.GET("/hello/:name", contextual.HandlerFunc(hello))
-
-		log.Fatal(http.ListenAndServe(":8080", router))
-	}
 */
 package router
 
@@ -89,6 +42,7 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/teepark/contextual"
+	"github.com/teepark/contextual/middleware"
 	"golang.org/x/net/context"
 )
 
@@ -96,47 +50,33 @@ import (
 // will be stored.
 const ParamKey = "params"
 
-// InitFunc is a function to transform the Context before an endpoint is called.
-// To short-circuit and skip the handlers entirely, return a Context that is
-// already done (probably by cancelling). Be sure you also set an appropriate
-// response code to the ResponseWriter.
-type InitFunc func(context.Context, http.ResponseWriter, *http.Request) context.Context
-
 // Router wraps an httprouter.Router to accept contextual.Handlers. For
-// each request, it adds the httprouter.Params to the context as
-// Value(router.ParamKey), executes a context initialization function,
-// and passes the resulting context to the handlers.
+// each request it adds the httprouter.Params to the context as
+// Value(router.ParamKey), then passes it to the appropriate (optionally
+// middleware-wrapped) handler.
 type Router struct {
 	router *httprouter.Router
-	init   InitFunc
+	mw     middleware.Middleware
 }
 
 // New creates a new Router around a given httprouter.Router.
 // All arguments may be nil, in which case the Router would wrap a
 // Router created with httprouter.New() and there would be no
-// initialization of the context.
-func New(router *httprouter.Router, init InitFunc) *Router {
+// middleware applied.
+func New(router *httprouter.Router, mw middleware.Middleware) *Router {
 	if router == nil {
 		router = httprouter.New()
 	}
 
 	return &Router{
 		router: router,
-		init:   init,
+		mw: mw,
 	}
 }
 
 // ServeHTTP implements http.Handler
 func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	router.router.ServeHTTP(w, r)
-}
-
-// Lookup allows manual lookup of a method/path. If one is found, it
-// returns the Handle and Params for the route. Otherwise the third
-// return value indicates whether adding or removing a trailing slash
-// would result in a found route.
-func (router *Router) Lookup(method, path string) (httprouter.Handle, httprouter.Params, bool) {
-	return router.router.Lookup(method, path)
 }
 
 // ServeFiles serves files from a given filesystem root. The path must
@@ -199,16 +139,18 @@ func handlerShim(router *Router, ctxHandle contextual.Handler) httprouter.Handle
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		ctx := context.WithValue(context.Background(), ParamKey, p)
 
-		if router.init != nil {
-			ctx = router.init(ctx, w, r)
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
+		var handle contextual.Handler
+		if router.mw != nil {
+			handle = contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+				ctx = router.mw.Inbound(ctx, w, r)
+				ctxHandle.Serve(ctx, w, r)
+				router.mw.Outbound(ctx, r)
+			})
+		} else {
+			handle = ctxHandle
 		}
 
-		ctxHandle.Serve(ctx, w, r)
+		handle.Serve(ctx, w, r)
 	})
 }
 
