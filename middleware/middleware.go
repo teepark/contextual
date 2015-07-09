@@ -1,3 +1,5 @@
+// Package middleware provides a concept of middleware built around Inbound and
+// Outbound callbacks, and some conveniences such as a Chain type.
 package middleware
 
 import (
@@ -17,6 +19,18 @@ const reachedKey = "__middleware_reached"
 type Middleware interface {
 	Inbound(context.Context, http.ResponseWriter, *http.Request) context.Context
 	Outbound(context.Context, *http.Request)
+}
+
+// Apply wraps a contextual.Handler by attaching a middleware's Inbound and
+// Outbound functions to it.
+func Apply(mw Middleware, handler contextual.Handler) contextual.Handler {
+	return contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+		ctx = mw.Inbound(ctx, w, r)
+		if !canceled(ctx) {
+			handler.Serve(ctx, w, r)
+		}
+		mw.Outbound(ctx, r)
+	})
 }
 
 // Inbound is a convenience wrapper so that a function matching the
@@ -50,6 +64,10 @@ func (outb Outbound) Outbound(ctx context.Context, r *http.Request) {
 
 // Chain is an ordered collection of middlewares. The first middleware in the
 // chain will be the outermost: its Inbound runs first, its Outbound last.
+//
+// Chain.Inbound will skip any Middlewares after one which cancels the context,
+// and then the corresponding Chain.Outbound call will only run Outbound on
+// those Middlewares whose Inbound actually ran.
 type Chain []Middleware
 
 // Inbound implements Middleware.Inbound by running each contained Middleware's
@@ -87,17 +105,13 @@ func (c Chain) Outbound(ctx context.Context, r *http.Request) {
 }
 
 // Then produces a usable contextual.Handler from the middleware chain
-// plus the provided final terminating endpoint Handler.
+// plus an endpoint Handler.
 func (c Chain) Then(h contextual.Handler) contextual.Handler {
 	if h == nil {
 		h = defaultHandler
 	}
 
-	return contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-		ctx = c.Inbound(ctx, w, r)
-		h.Serve(ctx, w, r)
-		c.Outbound(ctx, r)
-	})
+	return Apply(c, h)
 }
 
 // ThenFunc performs the same operation as Then, but takes a contextual.HandlerFunc

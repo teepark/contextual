@@ -33,7 +33,6 @@ A simple example looks like this:
 
 		log.Fatal(http.ListenAndServe(":8080", router))
 	}
-
 */
 package router
 
