@@ -69,7 +69,7 @@ func New(router *httprouter.Router, mw middleware.Middleware) *Router {
 
 	return &Router{
 		router: router,
-		mw: mw,
+		mw:     mw,
 	}
 }
 
@@ -134,21 +134,13 @@ func (router *Router) PATCH(path string, handle contextual.Handler) {
 	router.Handle("PATCH", path, handle)
 }
 
-func handlerShim(router *Router, ctxHandle contextual.Handler) httprouter.Handle {
+func handlerShim(router *Router, handle contextual.Handler) httprouter.Handle {
+	if router.mw != nil {
+		handle = middleware.Apply(router.mw, handle)
+	}
+
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		ctx := context.WithValue(context.Background(), ParamKey, p)
-
-		var handle contextual.Handler
-		if router.mw != nil {
-			handle = contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-				ctx = router.mw.Inbound(ctx, w, r)
-				ctxHandle.Serve(ctx, w, r)
-				router.mw.Outbound(ctx, r)
-			})
-		} else {
-			handle = ctxHandle
-		}
-
 		handle.Serve(ctx, w, r)
 	})
 }
