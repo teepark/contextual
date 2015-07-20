@@ -147,8 +147,10 @@ func TestRouterMethodFuncs(t *testing.T) {
 }
 
 func TestInboundMiddlewareRuns(t *testing.T) {
-	initer := middleware.Inbound(func(c context.Context, w http.ResponseWriter, r *http.Request) context.Context {
-		return context.WithValue(c, "key", "value")
+	initer := middleware.Middleware(func(h contextual.Handler) contextual.Handler {
+		return contextual.HandlerFunc(func(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+			h.Serve(context.WithValue(ctx, "key", "value"), w, r)
+		})
 	})
 
 	router := New(nil, initer)

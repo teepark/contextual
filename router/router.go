@@ -136,7 +136,7 @@ func (router *Router) PATCH(path string, handle contextual.Handler) {
 
 func handlerShim(router *Router, handle contextual.Handler) httprouter.Handle {
 	if router.mw != nil {
-		handle = middleware.Apply(router.mw, handle)
+		handle = router.mw(handle)
 	}
 
 	return httprouter.Handle(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
