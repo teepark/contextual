@@ -89,12 +89,12 @@ func (router *Router) Handle(method, path string, handle contextual.Handler) {
 	router.router.Handle(method, path, handlerShim(router, handle))
 }
 
-// Handle adds an http.Handler for a method/path
+// Handler adds an http.Handler for a method/path
 func (router *Router) Handler(method, path string, handler http.Handler) {
 	router.router.Handler(method, path, handler)
 }
 
-// handlerFunc adds an http.HandlerFunc for a method/path
+// HandlerFunc adds an http.HandlerFunc for a method/path
 func (router *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
 	router.router.HandlerFunc(method, path, handler)
 }
