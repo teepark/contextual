@@ -84,6 +84,13 @@ func (router *Router) ServeFiles(path string, root http.FileSystem) {
 	router.router.ServeFiles(path, root)
 }
 
+// Lookup indicates whether a request would be handled,
+// and what url parameters would be extracted.
+func (router *Router) Lookup(method, path string) (httprouter.Params, bool) {
+	_, p, ok := router.router.Lookup(method, path)
+	return p, ok
+}
+
 // Handle adds a method/path handler with a context.Context argument
 func (router *Router) Handle(method, path string, handle contextual.Handler) {
 	router.router.Handle(method, path, handlerShim(router, handle))
